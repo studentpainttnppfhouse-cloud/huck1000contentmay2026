@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Huck.1980 — ตัวติดตามคอนเทนต์ 1,000 โพสต์</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700;800;900&family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+
+<!-- ═══════════════════════════════════════════════════════════
+  FIREBASE SETUP — แก้ไขค่าด้านล่างด้วย config ของคุณ
+  
+  วิธีตั้งค่า Firebase (ฟรี, ใช้เวลาประมาณ 5 นาที):
+  1. ไปที่ https://console.firebase.google.com
+  2. คลิก "Add project" → ตั้งชื่อโปรเจกต์ → Continue
+  3. ปิด Google Analytics → Create project
+  4. เลือก "Realtime Database" จากเมนูซ้าย
+  5. คลิก "Create Database" → เลือก Region ใกล้ที่สุด → Start in test mode
+  6. กลับหน้า Project Overview → คลิกไอคอน </> (Web app)
+  7. ตั้งชื่อ app → Register app → คัดลอกค่า firebaseConfig
+  8. วางค่าด้านล่างแทนที่ค่า placeholder
+  ═══════════════════════════════════════════════════════════ -->
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, update, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  // ─── Firebase config ───────────────────────────────────────
+  // databaseURL is confirmed. Paste your apiKey + appId from
+  // Firebase Console → Project Settings → Your apps → Web app
+  // ──────────────────────────────────────────────────────────
+  const firebaseConfig = {
+    apiKey:            "YOUR_API_KEY",          // ← วางค่าจาก Firebase Console
+    authDomain:        "huck1980-cb4dd.firebaseapp.com",
+    databaseURL:       "https://huck1980-cb4dd-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:         "huck1980-cb4dd",
+    storageBucket:     "huck1980-cb4dd.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",        // ← วางค่าจาก Firebase Console
+    appId:             "YOUR_APP_ID"            // ← วางค่าจาก Firebase Console
+  };
+
+  // Works in Realtime Database test mode even with placeholder apiKey —
+  // only databaseURL is required for read/write when rules are open.
+  const isConfigured = firebaseConfig.databaseURL.includes("huck1980-cb4dd");
+
+  let db = null;
+  let dbRef = null;
+
+  if (isConfigured) {
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getDatabase(app);
+      dbRef = ref(db, "huck1980/done");
+    } catch(e) {
+      console.warn("Firebase init error:", e.message);
+    }
+  }
+
+  // Expose to global scope for the rest of the script
+  window.__firebase = { db, dbRef, isConfigured, update, onValue, get, ref };
+</script>
+
+<style>
+:root {
+  --gold: #d4a017;
+  --gold-light: #f0c842;
+  --bg: #0b0b0b;
+  --surface: #141414;
+  --surface2: #1c1c1c;
+  --border: #2a2a2a;
+  --text: #e8e8e8;
+  --muted: #666;
+  --tiktok: #ff2d55;
+  --facebook: #1877f2;
+  --done-bg: #0a1a0a;
+  --done-border: #2a5a2a;
+  --done-text: #4a8a4a;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;font-size:14px;line-height:1.6;}
+
+/* SYNC STATUS BAR */
+.sync-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 32px;font-size:11px;
+  background:#0d0d0d;border-bottom:1px solid #1a1a1a;
+}
+.sync-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.sync-dot.green{background:#4caf50;box-shadow:0 0 6px #4caf5088;}
+.sync-dot.orange{background:#ff9800;box-shadow:0 0 6px #ff980088;animation:pulse 1s infinite;}
+.sync-dot.red{background:#f44336;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* SETUP BANNER */
+.setup-banner{
+  background:linear-gradient(90deg,#1a0d00,#1a1200);
+  border:1px solid #7a4a00;
+  border-radius:10px;margin:16px 24px;
+  padding:16px 20px;
+  display:none;
+}
+.setup-banner.show{display:block;}
+.setup-banner h3{color:#f0a020;font-family:'Prompt',sans-serif;font-size:14px;margin-bottom:8px;}
+.setup-banner ol{color:#ccc;font-size:12px;line-height:2;padding-left:18px;}
+.setup-banner a{color:#f0c842;text-decoration:none;}
+.setup-banner code{background:#111;border:1px solid #333;border-radius:4px;padding:1px 6px;font-size:11px;color:#f0a020;}
+
+/* HEADER */
+.header{
+  background:linear-gradient(180deg,#111 0%,#0e0e0e 100%);
+  border-bottom:2px solid var(--gold);
+  padding:22px 32px 18px;
+  position:sticky;top:0;z-index:200;
+  box-shadow:0 6px 40px rgba(0,0,0,.7);
+}
+.header-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+.brand-pill{
+  background:linear-gradient(135deg,var(--gold),var(--gold-light));
+  color:#111;font-family:'Prompt',sans-serif;font-weight:900;
+  font-size:11px;letter-spacing:2px;padding:5px 13px;border-radius:20px;white-space:nowrap;
+}
+.header-title{font-family:'Prompt',sans-serif;font-weight:800;font-size:19px;color:#fff;}
+.progress-badge{
+  margin-left:auto;background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:5px 14px;font-size:13px;color:var(--gold);font-weight:700;white-space:nowrap;
+}
+.progress-bar-wrap{height:6px;background:#222;border-radius:10px;overflow:hidden;margin-bottom:14px;}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:10px;transition:width .5s ease;}
+.filters{display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
+.filters input,.filters select,.filters button{
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:6px 11px;font-size:12px;font-family:'Sarabun',sans-serif;
+  cursor:pointer;outline:none;transition:border-color .2s;
+}
+.filters input{width:190px;}
+.filters input:focus,.filters select:focus{border-color:var(--gold);}
+.filters select option{background:#1a1a1a;}
+.btn-done{transition:all .2s;}
+.btn-done.active{background:var(--gold)!important;color:#111!important;font-weight:700!important;border-color:var(--gold)!important;}
+.filter-count{color:var(--muted);font-size:11px;}
+
+/* MAIN */
+.main{max-width:1280px;margin:0 auto;padding:16px 24px 60px;}
+
+/* CARD */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-left:4px solid var(--gold);border-radius:10px;
+  margin-bottom:6px;overflow:hidden;transition:border-color .2s,background .2s;
+}
+.card.done{background:var(--done-bg);border-color:var(--done-border);border-left-color:#3a8a3a;}
+.card-row{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;transition:background .15s;}
+.card-row:hover{background:rgba(255,255,255,.02);}
+.cb{
+  width:21px;height:21px;border-radius:6px;flex-shrink:0;
+  border:2px solid #444;background:transparent;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:12px;color:#fff;transition:all .15s;user-select:none;
+}
+.cb.checked{background:#3a8a3a;border-color:#3a8a3a;}
+.cb.loading{opacity:.5;pointer-events:none;}
+.card-id{color:#444;font-size:11px;min-width:38px;font-weight:700;}
+.cat-badge{background:#1e1e1e;border:1px solid #333;border-radius:6px;padding:2px 7px;font-size:10px;color:#999;white-space:nowrap;min-width:82px;text-align:center;}
+.plat-badge{border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;white-space:nowrap;}
+.plat-tiktok{background:rgba(255,45,85,.12);border:1px solid rgba(255,45,85,.3);color:var(--tiktok);}
+.plat-facebook{background:rgba(24,119,242,.12);border:1px solid rgba(24,119,242,.3);color:var(--facebook);}
+.type-badge{font-size:11px;color:#777;white-space:nowrap;}
+.card-title{flex:1;font-size:13px;font-weight:600;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.card.done .card-title{color:var(--done-text);text-decoration:line-through;}
+.arrow{color:#444;font-size:11px;flex-shrink:0;transition:transform .2s;}
+.arrow.open{transform:rotate(180deg);}
+.card-body{padding:0 13px 13px 50px;border-top:1px solid #1e1e1e;padding-top:11px;display:none;}
+.card-body.open{display:block;}
+.section-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;margin-top:11px;}
+.section-label:first-child{margin-top:0;}
+.caption-box{background:#0d0d0d;border:1px solid #222;border-radius:8px;padding:12px 14px;font-size:13px;color:#bbb;line-height:1.9;white-space:pre-line;max-height:260px;overflow-y:auto;}
+.caption-box::-webkit-scrollbar{width:4px;}
+.caption-box::-webkit-scrollbar-thumb{background:#333;border-radius:2px;}
+.visual-box{background:#0d0d0d;border:1px solid #222;border-radius:8px;padding:10px 14px;font-size:12px;color:#999;line-height:1.7;font-style:italic;}
+.visual-box strong{color:#c9a020;font-style:normal;}
+.action-row{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap;}
+.btn{background:var(--surface2);border:1px solid var(--border);color:#aaa;border-radius:7px;padding:5px 13px;font-size:12px;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s;}
+.btn:hover{border-color:#555;color:#ddd;}
+.btn-check{border-color:#2a5a2a;color:#3a8a3a;}
+.btn-check:hover{background:#0a1a0a;color:#4caf50;}
+.btn-uncheck{background:#0a1a0a;border-color:#2a5a2a;color:var(--done-text);}
+
+/* PAGINATION */
+.pagination{display:flex;gap:5px;justify-content:center;margin-top:20px;flex-wrap:wrap;}
+.page-btn{background:var(--surface);border:1px solid var(--border);color:#aaa;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;transition:all .15s;}
+.page-btn:hover:not(:disabled){border-color:#555;color:#ddd;}
+.page-btn.active{background:var(--gold);color:#111;border-color:var(--gold);font-weight:700;}
+.page-btn:disabled{opacity:.3;cursor:not-allowed;}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px;margin-top:24px;padding-top:18px;border-top:1px solid #1e1e1e;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px;text-align:center;}
+.stat-num{font-family:'Prompt',sans-serif;font-size:24px;font-weight:800;}
+.stat-label{font-size:11px;color:var(--muted);margin-top:3px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:10px 18px;font-size:13px;color:#ccc;z-index:9999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- Sync status -->
+<div class="sync-bar" id="syncBar">
+  <div class="sync-dot orange" id="syncDot"></div>
+  <span id="syncText">กำลังเชื่อมต่อ Firebase...</span>
+</div>
+
+<!-- Setup banner (shown if not configured) -->
+<div class="setup-banner" id="setupBanner">
+  <h3>⚙️ เกือบเสร็จแล้ว! เหลือแค่ 3 ค่า</h3>
+  <p style="color:#5cb85c;font-size:12px;margin-bottom:10px;">✅ <strong>databaseURL ใส่แล้ว</strong> — huck1980-cb4dd-default-rtdb.asia-southeast1.firebasedatabase.app</p>
+  <ol>
+    <li>ไปที่ <a href="https://console.firebase.google.com/project/huck1980-cb4dd/settings/general" target="_blank">Firebase Console → Project Settings (คลิกตรงนี้)</a></li>
+    <li>เลื่อนลงถึง <strong>Your apps</strong> → ถ้ายังไม่มี Web app ให้คลิก &lt;/&gt; → Register app (ตั้งชื่ออะไรก็ได้)</li>
+    <li>คัดลอกค่า <code>apiKey</code>, <code>messagingSenderId</code>, และ <code>appId</code></li>
+    <li>เปิดไฟล์ HTML นี้ด้วย Notepad หรือ VS Code → หาบรรทัด <code>apiKey: "YOUR_API_KEY"</code></li>
+    <li>วางค่าจริงทั้ง 3 บรรทัด → บันทึกไฟล์ → เปิดใหม่</li>
+    <li>แถบด้านบนจะเปลี่ยนเป็น 🟢 เชื่อมต่อแล้ว — ซิงก์ทุกอุปกรณ์ ✓</li>
+  </ol>
+  <p style="color:#888;font-size:11px;margin-top:8px;">⚠️ ระหว่างรอ ระบบบันทึกเฉพาะเครื่องนี้ก่อน (localStorage)</p>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div style="max-width:1280px;margin:0 auto;">
+    <div class="header-top">
+      <div class="brand-pill">HUCK.1980</div>
+      <h1 class="header-title">ตัวติดตามคอนเทนต์ 1,000 โพสต์</h1>
+      <div class="progress-badge" id="progressBadge">✅ 0 / 1,000 (0%)</div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+    </div>
+    <div class="filters">
+      <input type="text" id="searchInput" placeholder="🔍 ค้นหาชื่อโพสต์หรือสินค้า..."/>
+      <select id="catFilter">
+        <option value="">หมวดสินค้าทั้งหมด</option>
+        <option value="เสื้อคอร์ดูรอย">เสื้อคอร์ดูรอย</option>
+        <option value="กางเกงคอร์ดูรอย">กางเกงคอร์ดูรอย</option>
+        <option value="เสื้อฮาวาย">เสื้อฮาวาย</option>
+        <option value="เสื้อ Honeycomb">เสื้อ Honeycomb</option>
+        <option value="กางเกงลินิน">กางเกงลินิน</option>
+        <option value="เสื้อลินิน">เสื้อลินิน</option>
+        <option value="เสื้อกำมะหยี่">เสื้อกำมะหยี่</option>
+        <option value="เสื้อลายทาง">เสื้อลายทาง</option>
+        <option value="ผ้าสก็อต">ผ้าสก็อต</option>
+        <option value="เสื้อโปโล">เสื้อโปโล</option>
+      </select>
+      <select id="typeFilter">
+        <option value="">ประเภทคอนเทนต์ทั้งหมด</option>
+        <option value="โปรดักต์โชว์เคส">🛍️ โปรดักต์โชว์เคส</option>
+        <option value="เบื้องหลัง">🎬 เบื้องหลัง</option>
+        <option value="Engagement">💬 Engagement</option>
+        <option value="สไตล์ลิ่ง">✨ สไตล์ลิ่ง</option>
+        <option value="โปรโมชัน">🔥 โปรโมชัน</option>
+        <option value="รีวิวลูกค้า">⭐ รีวิวลูกค้า</option>
+        <option value="ลุคบุ๊ก">📖 ลุคบุ๊ก</option>
+        <option value="OOTD">👗 OOTD</option>
+        <option value="เทรนด์">📈 เทรนด์</option>
+        <option value="Unboxing">📦 Unboxing</option>
+        <option value="ไลฟ์สไตล์">🌅 ไลฟ์สไตล์</option>
+        <option value="เปรียบเทียบสี">🎨 เปรียบเทียบสี</option>
+        <option value="สถานที่">📍 สถานที่</option>
+      </select>
+      <select id="platFilter">
+        <option value="">แพลตฟอร์มทั้งหมด</option>
+        <option value="TikTok">TikTok</option>
+        <option value="Facebook">Facebook</option>
+      </select>
+      <button class="btn-done" id="doneToggle" onclick="toggleDoneFilter()">แสดงเฉพาะที่ทำแล้ว</button>
+      <span class="filter-count" id="filterCount"></span>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div id="cardContainer"></div>
+  <div class="pagination" id="pagination"></div>
+  <div class="stats-grid" id="statsGrid"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONTENT DATA
+// ═══════════════════════════════════════════════════════════
+const PRODUCTS = [
+  {n:"เสื้อคอร์ดูรอยเนื้อนุ่ม (ฟรีไซส์)",c:"เสื้อคอร์ดูรอย",p:169},
+  {n:"เสื้อคอร์ดูรอยเนื้อนุ่ม (XL)",c:"เสื้อคอร์ดูรอย",p:182},
+  {n:"เสื้อคอร์ดูรอยแขนยาวเนื้อดี",c:"เสื้อคอร์ดูรอย",p:182},
+  {n:"เสื้อโปโลคอร์ดูรอยแขนยาว",c:"เสื้อคอร์ดูรอย",p:169},
+  {n:"เสื้อโปโลคอร์ดูรอยแขนสั้น",c:"เสื้อคอร์ดูรอย",p:156},
+  {n:"เสื้อคอร์ดูรอยลายทางหนาพิเศษ (ฟรีไซส์)",c:"เสื้อคอร์ดูรอย",p:169},
+  {n:"เสื้อคอร์ดูรอยลายทางหนาพิเศษ (XL)",c:"เสื้อคอร์ดูรอย",p:182},
+  {n:"กางเกงคอร์ดูรอยขายาว มีกระเป๋าข้าง",c:"กางเกงคอร์ดูรอย",p:195},
+  {n:"กางเกงคอร์ดูรอยขายาวคลาสสิก",c:"กางเกงคอร์ดูรอย",p:182},
+  {n:"กางเกงคอร์ดูรอยขาสั้น มีกระเป๋าข้าง",c:"กางเกงคอร์ดูรอย",p:156},
+  {n:"กางเกงคอร์ดูรอยขาสั้นเบสิก",c:"กางเกงคอร์ดูรอย",p:143},
+  {n:"เสื้อฮาวายไซส์ 2XL สีสันจัดจ้าน",c:"เสื้อฮาวาย",p:182},
+  {n:"เสื้อฮาวายฟรีไซส์ ลายสดใส",c:"เสื้อฮาวาย",p:156},
+  {n:"เสื้อฮาวาย XL ใส่สบาย",c:"เสื้อฮาวาย",p:182},
+  {n:"เสื้อ Honeycomb ฟรีไซส์เนื้อพรีเมียม",c:"เสื้อ Honeycomb",p:169},
+  {n:"เสื้อ Honeycomb แขนยาวสไตล์มินิมอล",c:"เสื้อ Honeycomb",p:182},
+  {n:"เสื้อ Honeycomb XL เนื้อดีมาก",c:"เสื้อ Honeycomb",p:182},
+  {n:"กางเกงลินินขายาว มีกระเป๋าข้าง",c:"กางเกงลินิน",p:195},
+  {n:"กางเกงลินินขายาวผ้าหนา ทรงดี",c:"กางเกงลินิน",p:182},
+  {n:"กางเกงลินินขายาวผ้าบาง ระบายอากาศดี",c:"กางเกงลินิน",p:182},
+  {n:"กางเกงลินินขาสั้น มีกระเป๋าข้าง",c:"กางเกงลินิน",p:156},
+  {n:"กางเกงลินินขาสั้นเบสิกสวมใส่ง่าย",c:"กางเกงลินิน",p:143},
+  {n:"เสื้อลินินฟรีไซส์เนื้อเบา ใส่สบาย",c:"เสื้อลินิน",p:156},
+  {n:"เสื้อลินิน XL ระบายอากาศได้ดี",c:"เสื้อลินิน",p:169},
+  {n:"เสื้อลินินลายทาง 2XL สไตล์รีสอร์ท",c:"เสื้อลินิน",p:169},
+  {n:"เสื้อลินินลายทางฟรีไซส์ ดูดีทุกซีน",c:"เสื้อลินิน",p:156},
+  {n:"เสื้อลินินลายทาง XL เนื้อดีสุดๆ",c:"เสื้อลินิน",p:169},
+  {n:"เสื้อกำมะหยี่ฟรีไซส์ สัมผัสนุ่มพิเศษ",c:"เสื้อกำมะหยี่",p:169},
+  {n:"เสื้อกำมะหยี่ XL โดดเด่นทุกที่",c:"เสื้อกำมะหยี่",p:182},
+  {n:"เสื้อกำมะหยี่แขนยาว อบอุ่นและสไตล์",c:"เสื้อกำมะหยี่",p:182},
+  {n:"เสื้อลายทางแขนสั้น ดูดีแบบมินิมอล",c:"เสื้อลายทาง",p:143},
+  {n:"เสื้อลายทางแขนยาว คลาสสิกทุกโอกาส",c:"เสื้อลายทาง",p:156},
+  {n:"ฮู้ดดี้ลายทาง อบอุ่นและสไตล์มาก",c:"เสื้อลายทาง",p:169},
+  {n:"กางเกงผ้าสก็อตขาสั้นฟรีไซส์",c:"ผ้าสก็อต",p:169},
+  {n:"เสื้อผ้าสก็อตแขนยาว วินเทจไวบ์",c:"ผ้าสก็อต",p:182},
+  {n:"กางเกงผ้าสก็อตขายาว สไตล์มีเอกลักษณ์",c:"ผ้าสก็อต",p:182},
+  {n:"ฮู้ดดี้ผ้าสก็อตตัวสั้น สวยมากจริงๆ",c:"ผ้าสก็อต",p:169},
+  {n:"เสื้อโปโลเรียบแขนสั้น ใส่ได้ทุกวัน",c:"เสื้อโปโล",p:143},
+  {n:"เสื้อโปโลเรียบแขนยาว สะอาดตาน่ารัก",c:"เสื้อโปโล",p:156},
+  {n:"เสื้อโปโลลายทางแขนสั้น สีสันสวยงาม",c:"เสื้อโปโล",p:169},
+  {n:"เสื้อโปโลลายทางแขนยาว ดูดีกว่าที่คิด",c:"เสื้อโปโล",p:182},
+];
+
+const ANGLES=[
+  ["โปรดักต์โชว์เคส","TikTok"],["โปรดักต์โชว์เคส","Facebook"],
+  ["เบื้องหลัง","TikTok"],["เบื้องหลัง","Facebook"],
+  ["Engagement","Facebook"],["Engagement","TikTok"],
+  ["สไตล์ลิ่ง","TikTok"],["สไตล์ลิ่ง","Facebook"],
+  ["โปรโมชัน","Facebook"],["โปรโมชัน","TikTok"],
+  ["รีวิวลูกค้า","Facebook"],["รีวิวลูกค้า","TikTok"],
+  ["ลุคบุ๊ก","Facebook"],["ลุคบุ๊ก","TikTok"],
+  ["OOTD","TikTok"],["OOTD","Facebook"],
+  ["เทรนด์","TikTok"],["เทรนด์","Facebook"],
+  ["Unboxing","TikTok"],["ไลฟ์สไตล์","Facebook"],
+  ["ไลฟ์สไตล์","TikTok"],["เปรียบเทียบสี","TikTok"],
+  ["เปรียบเทียบสี","Facebook"],["สถานที่","Facebook"],
+];
+
+const TITLES={
+"โปรดักต์โชว์เคส":["ดรอปใหม่มาแล้ว! พลาดไม่ได้เลย","ของดีราคาเป็นมิตร มีครบทุกไซส์","คุณภาพพรีเมียม ราคาไม่แพง","สินค้าใหม่เข้ามาแล้ว รีบดูก่อนหมด","เนื้อผ้าดีจนต้องบอกต่อ","สีสวยทรงดี ใส่แล้วไม่อยากถอด","เสื้อตัวใหม่ที่คุณต้องมีในตู้","สไตล์ที่ใช่ ราคาที่รัก","ลุคมินิมอลสุดปัง มาแล้วนะ","ของดีมีให้เลือกเยอะมาก","ไอเทมเด็ดแห่งซีซัน","หมดแล้วหมดเลย รีบสั่งก่อน","เพิ่งนำเข้า สดใหม่จากโรงงาน","ซื้อได้เลย ไม่ต้องคิดนาน","สินค้าขายดีประจำสัปดาห์","ทั้งสวยทั้งคุ้ม ครบในตัวเดียว","ใส่ทุกโอกาส ดูดีทุกสถานการณ์","สต็อกมีจำกัด อย่าให้พลาด","เสื้อที่ลูกค้ากลับมาซื้อซ้ำตลอด","ดีไซน์ที่เหนือกาลเวลา","ผ้าเนื้อดีที่รู้สึกได้ตั้งแต่แรกสัมผัส","เพิ่มสีใหม่! ตัวนี้ต้องมี","ซื้อครั้งเดียวใส่ได้นานหลายปี","ขายดีจนต้องเปิดพรีออเดอร์"],
+"เบื้องหลัง":["เบื้องหลังการแพ็คออเดอร์ที่เต็มไปด้วยความรัก","ดูก่อน! นี่คือกระบวนการส่งสินค้าของเรา","จากโกดังถึงมือคุณ เราไม่เคยมักง่าย","ทีมงานทุ่มเทแค่ไหน? มาดูกัน","แพ็คออเดอร์วันนี้ หลายร้อยชิ้นเลย!","คัดสต็อกใหม่เข้ามาแล้ว มาดูเบื้องหลังกัน","ของเข้าโกดัง ทีมงานคึกคักมาก","บรรยากาศร้านจตุจักรวันเสาร์","ลูกค้าแน่นร้านมากวันนี้ขอบคุณนะ","เช็คสต็อกก่อนเปิดร้านทุกเช้า","นับสินค้าให้ครบก่อนส่ง ไม่ยอมพลาด","เตรียมของวันศุกร์ สำหรับออเดอร์สุดสัปดาห์","แพ็คดีทุกกล่อง เพราะคุณสำคัญ","ทีมงานมือเร็ว แพ็คร้อยชิ้นก่อนเที่ยง","เปิดกล่องสินค้าใหม่จากซัพพลายเออร์","จัดเรียงสต็อกใหม่ เพิ่มสีใหม่เข้ามาด้วย","รู้ไหม? เราตรวจคุณภาพทุกตัวก่อนส่ง","วันหยุดก็ยังแพ็คออเดอร์ เพราะคุณรอ","เบื้องหลังร้าน Future Park รังสิตวันนี้","ไลฟ์สตรีมแพ็คของ มาดูสดๆ กัน","สต็อกหมดเร็วมาก! รีบสั่งก่อนนะ","ของเข้าใหม่ เช็คสต็อกสดๆ เลย","ลูกค้าประจำได้รับของวันนี้ ดีใจด้วย","วันนี้แพ็คออเดอร์ต่างประเทศด้วย!"],
+"Engagement":["คุณเป็นแบบไหน? โหวตเลย!","บอกหน่อยว่าคุณชอบแบบไหน","ช่วยตัดสินใจหน่อยนะ","คนไหนชอบก็กดหัวใจได้เลย","เราอยากรู้ว่าคุณคิดอะไร","ตอบเราหน่อยนะ แค่คอมเมนต์เดียว","ช่วยตอบคำถามนี้ให้เราด้วยได้ไหม?","แท็กเพื่อนที่ต้องการสิ่งนี้เดี๋ยวนี้!","คุณมีในตู้แล้วหรือยัง?","สีไหนที่ทำให้คุณหยุดเลื่อน?","ถ้าได้ฟรี คุณจะเลือกตัวไหน?","บอกเราว่าไซส์ไหนที่คุณต้องการ","ลุคไหนที่คุณอยากลองมากที่สุด?","แชร์ให้เพื่อนดูหน่อยนะ!","ใครใส่แล้วถ่ายรูปมา เราจะรีโพสต์!","คอมเมนต์คำเดียวที่นึกถึงเสื้อตัวนี้","ทายว่าราคานี้เท่าไหร่ คนที่ทายถูกรับของรางวัล","คุณจะจับคู่ตัวนี้กับอะไร?","เพื่อนคนไหนในกลุ่มที่ต้องใส่ตัวนี้?","ถ้าต้องเลือกระหว่าง 2 สีนี้ คุณเลือกไหน?","เคยซื้อกับเราแล้วไหม? บอกประสบการณ์ด้วยนะ","บอกเราว่าอยากเห็นคอนเทนต์แบบไหนต่อ","เซฟโพสต์นี้ไว้ก่อนนะ แล้วค่อยกลับมาสั่งซื้อ","ไลก์ถ้าคุณอยากได้ตัวนี้เดี๋ยวนี้"],
+"สไตล์ลิ่ง":["จับคู่ยังไงให้ดูดีทุกวัน","3 ลุคจากเสื้อตัวเดียว","สไตล์ที่ใช้ได้จริงในชีวิตประจำวัน","แต่งง่ายแต่ดูดีแบบนี้ได้ไง?","ลุคสำหรับคนชอบเรียบๆ แต่มีสไตล์","ใส่ทำงานก็ได้ ไปเที่ยวก็สวย","เคล็ดลับแต่งตัวจากทีมงาน Huck.1980","Mix & Match กับของที่มีในตู้แล้ว","สีไหนจับกับสีไหน? มาดูกัน","ลุค minimal ที่ดูแพงมากๆ","แต่งตัวไปทะเล ไม่ต้องใช้เวลานาน","เสื้อตัวเดียว ใส่ได้หลายสไตล์มาก","สไตล์ cafe hopping ต้องแบบนี้","ลุค street smart ที่ทำได้ง่ายมาก","กางเกงสีนี้ต้องจับคู่กับเสื้อสีนี้","ลุคสำหรับวันสบายๆ ที่บ้านหรือออกไปใกล้ๆ","ฤดูนี้ต้องแต่งตัวแบบนี้","เสื้อตัวนี้เปลี่ยน vibe ได้เลยแค่เปลี่ยนกางเกง","ลุคชิลๆ แต่ดูแพงได้ยังไง?","จับคู่กับรองเท้าแบบไหนถึงจะปัง","ลุค date night ที่ไม่ต้องใช้ effort มาก","สไตล์นักศึกษาที่ดูโตขึ้น","ลุคไปตลาดนัดที่ถ่ายรูปสวยทุกมุม","อยากแต่งตัวสไตล์นี้ มาเริ่มจากตรงนี้"],
+"โปรโมชัน":["ลดพิเศษ! วันนี้วันเดียวเท่านั้น","แฟลชเซล! ราคาพิเศษสุดๆ","ซื้อ 2 ลด 15% รีบเลย!","โปรโมชันสุดคุ้มที่ไม่ควรพลาด","เคลียร์สต็อก ราคาพิเศษมาก","โปรเดือนนี้ดีมาก อย่าให้พลาด","ราคาพิเศษสำหรับสมาชิก","ช้อปครบ 300 ฟรีค่าส่ง!","วันนี้สุดท้ายของโปร อย่าลืมนะ","Bundle Deal สุดคุ้ม เสื้อ+กางเกง","ราคาเพียงไม่กี่ร้อยบาท ของดีไม่ต้องแพง","ส่งฟรีทั่วไทย วันนี้เท่านั้น","เพิ่งลดราคาใหม่! เข้ามาดูด่วน","โปรสุดท้ายก่อนสิ้นเดือน","ซื้อเยอะยิ่งคุ้ม ราคาส่ง","ราคาพิเศษสำหรับลูกค้าใหม่","โปร 11.11 มาแล้ว! อย่าพลาด","ลดกระจาย ก่อนเปิดคอลเลกชันใหม่","ราคาพิเศษเพียง 3 วันเท่านั้น","สั่งก่อน 12 ทุ่ม ส่งเช้าพรุ่งนี้","โปร Weekend สุดคุ้มมาแล้ว","เหลือน้อยมาก! ราคาพิเศษสุดท้าย","ฉลองยอดขาย ลดให้ทุกคน","โปรช่วงเทศกาล พิเศษสุดๆ"],
+"รีวิวลูกค้า":["ลูกค้าพูดว่าอะไร? มาฟังกัน","รีวิวจริง จากลูกค้าจริง","5 ดาว จากลูกค้าของเรา","ซื้อแล้วก็กลับมาซื้ออีก นี่แหละคือคุณภาพ","ขอบคุณรีวิวสุดน่ารักจากลูกค้า","ลูกค้าพอใจมาก เราก็ดีใจด้วย","ลูกค้าประจำกลับมาสั่งซ้ำอีกแล้ว!","รีวิวที่ทำให้ทีมงานยิ้มได้ทั้งวัน","ความเห็นจริงๆ จากคนที่ใส่จริง","เสื้อตัวนี้ทำให้ลูกค้าประทับใจมาก","ได้รับรีวิวดีๆ มาฝากทุกคน","ลูกค้าบอกว่าดีเกินราคา จริงมาก!","Social Proof ที่ดีที่สุดคือลูกค้าพูดเอง","ส่งเร็ว แพ็คดี สินค้าตรงปก","ลูกค้าแนะนำให้เพื่อน เราขอบคุณมาก","รีวิวสต็อกหมดทุกครั้ง เพราะอะไร?","แท็กเพื่อนที่ต้องอ่านรีวิวนี้","ลูกค้าใส่แล้วได้รับคำชมจากเพื่อน","ไม่ต้องโฆษณา ลูกค้าบอกต่อให้เอง","ซื้อครั้งแรกก็ชอบ ซื้อครั้งที่สองก็ชอบ","ลูกค้าต่างประเทศก็สั่งซื้อแล้ว!","ขนาดเสื้อตรงตามที่บอก ลูกค้าประทับใจ","เนื้อผ้าดีกว่าในรูปมาก ลูกค้ายืนยัน","รีวิวล่าสุดจากลูกค้าที่น่ารักของเรา"],
+"ลุคบุ๊ก":["ลุคบุ๊กคอลเลกชันล่าสุด","รวมลุคสวยจากสินค้าตัวเดียว","4 ลุคต่างกัน จากเสื้อตัวเดิม","Lookbook ฤดูร้อนมาแล้ว","ไอเดียแต่งตัวจากทีม Huck.1980","คอลเลกชันใหม่ ดูดีทุกลุค","ลุคสวยๆ บันดาลใจจากท้องถนน","เสฟไว้เลย! ลุคบุ๊กสุดปัง","ลุคบุ๊กวันสบายๆ ที่ใช้ได้จริง","รวมลุคที่ลูกค้าแท็กมาในสัปดาห์นี้","Lookbook สไตล์ธรรมชาติ","คอลเลกชันที่ดีไซน์มาเพื่อชีวิตจริง","ลุคบุ๊กจากร้านจริง ถ่ายในร้านเลย","รวมลุคที่เหมาะกับทุกวัน","Lookbook เที่ยวทะเล","Lookbook ไปทำงาน","Lookbook วันหยุดพักผ่อน","Lookbook ออกกำลังกายเบาๆ","Lookbook คาเฟ่ฮ็อปปิ้ง","Lookbook ไปตลาดนัด","Lookbook สไตล์มินิมอล","Lookbook เทศกาลสงกรานต์","Lookbook ท่องเที่ยวไทย","Lookbook ลุค Urban Casual"],
+"OOTD":["OOTD วันนี้ ลุคชิลๆ ที่ชอบมาก","วันนี้ใส่อะไร? แชร์ลุคกัน","OOTD สไตล์ minimalist ที่ทำได้จริง","ลุควันจันทร์ ไปทำงานแบบนี้แล้วดูดี","OOTD สำหรับวันเสาร์ สบายๆ มีสไตล์","แต่งตัวง่ายๆ แต่ถ่ายรูปสวยทุกมุม","OOTD วันเที่ยวทะเลที่ชอบมาก","ลุควันนี้ใช้เวลาแต่งแค่ 5 นาที","OOTD ที่เพื่อนถามว่าซื้อที่ไหน","วันนี้ดูดีขึ้นเพราะเสื้อตัวนี้","OOTD เที่ยวกลางคืนแบบ chill","OOTD ไปคาเฟ่กับแฟน","ลุคไปงานเลี้ยงที่ดูแพงแต่ไม่แพงจริง","OOTD ง่ายๆ แต่ดูโตขึ้นมาก","วันนี้ใส่สีใหม่ รู้สึก fresh มาก","OOTD สไตล์นักศึกษาที่ดูดีมาก","ลุคสำหรับคนที่ไม่รู้จะใส่อะไร","OOTD วันฝนตก เลือกสีนี้ไม่ผิดหวัง","ลุคง่ายๆ ที่ดูดีกว่าที่คิดมาก","OOTD บ่ายๆ ออกไปข้างนอก","วันนี้รู้สึกดีตั้งแต่เช้าเพราะเสื้อตัวนี้","OOTD สีธรรมชาติ ดูสบายตามาก","ลุคที่ใส่ครั้งแรกแล้วรู้สึกชอบทันที","OOTD ที่ทำให้ทุกคนถามว่าซื้อที่ไหน"],
+"เทรนด์":["เทรนด์นี้กำลัง hot มากในตอนนี้","ทำไมทุกคนถึงใส่สไตล์นี้?","เทรนด์แฟชั่น 2025 มาแล้ว!","สไตล์นี้กำลังมาแรงบน TikTok","แฟชั่นที่เห็นทุกที่ในตอนนี้","เทรนด์ที่เหมาะกับอากาศไทยมากที่สุด","ใครๆ ก็ใส่สไตล์นี้ คุณล่ะ?","เทรนด์ minimal streetwear มาแรง","สีนี้กำลัง trending มากในซีซันนี้","เทรนด์ resort wear ที่ทุกคนกำลังชอบ","ลายนี้กลับมาอีกครั้งและ hot กว่าเดิม","เทรนด์จากต่างประเทศมาถึงไทยแล้ว","สไตล์ง่ายๆ ที่กำลังดังมากบน IG","เทรนด์ earthy tone ที่ยังไม่ตาย","วัสดุนี้กำลัง trending ทั่วโลก","เทรนด์ลายทางที่ไม่มีวันตกยุค","สไตล์ vintage ที่กลับมาใหม่และดีกว่าเดิม","เทรนด์ oversized ที่ยังใส่ได้อยู่","ลุคนี้กำลัง viral บน TikTok ทั่วโลก","เทรนด์ไทยที่คนทั่วโลกกำลังสนใจ","สีนี้เห็นทุกที่ในโซเชียลตอนนี้","เทรนด์ฤดูฝนที่ทำให้ดูดีในทุกวัน","แฟชั่น sustainable ที่กำลังมา","เทรนด์ที่เหมาะกับไลฟ์สไตล์คนรุ่นใหม่"],
+"Unboxing":["เปิดกล่องก่อนใคร! ดูสินค้าจริง","Unboxing ของใหม่ที่เพิ่งส่งถึง","เปิดกล่องพร้อมกัน เนื้อผ้าดีแค่ไหน?","ของเพิ่งมาถึง มาเปิดดูด้วยกัน","Unboxing สินค้าใหม่จาก Huck.1980","ดูสินค้าจริงก่อนตัดสินใจซื้อ","เปิดกล่องแล้วตกหลุมรักเลย","Unboxing คอลเลกชันล่าสุด","ดูความพิถีพิถันของการแพ็คกล่อง","เนื้อผ้าจริงดีกว่าในรูปมาก","First look สินค้าใหม่มาแล้ว","เปิดกล่องพร้อมลองสวม ดูทรงจริง","Unboxing ออเดอร์ที่รอมานาน","มาดูว่าของจริงเหมือนในรูปไหม","Unboxing สินค้าที่ขายดีที่สุดประจำสัปดาห์","เปิดกล่องและตรวจคุณภาพพร้อมกัน","Unboxing สินค้า limited edition","ของใหม่มาถึง! เปิดดูด้วยกัน","Unboxing ที่ทำให้รู้ว่าทำไมลูกค้าถึงกลับมา","ดูทั้งสีทั้งทรง ก่อนกดสั่งซื้อ","เปิดกล่องพร้อมรีวิวสดๆ","Unboxing แบบ honest ไม่มีโกหก","มาดูว่าของดีขนาดไหน","Unboxing ครบทุก detail ก่อนตัดสินใจ"],
+"ไลฟ์สไตล์":["ชีวิตดีๆ เริ่มจากการแต่งตัวที่ใช่","วันสุดสัปดาห์ที่สมบูรณ์แบบ","ไลฟ์สไตล์ที่ชอบ ใส่เสื้อที่รัก","เช้าวันสบายๆ กับลุคที่ชอบ","ชีวิตดีต้องมีสไตล์","วันหยุดสบายๆ กับเสื้อตัวโปรด","ไปไหนก็ดูดีถ้าใส่ของดี","ไลฟ์สไตล์ชิลๆ ที่ทุกคนอยากมี","เช้านี้ดีขึ้นเพราะลุคนี้","วันฝนตกก็ยังดูดีได้","ชีวิตง่ายขึ้นเมื่อมีเสื้อดีๆ","ไลฟ์สไตล์ minimal ที่ไม่ต้องพยายามมาก","ออกไปข้างนอกก็ต้องดูดีนะ","ไปคาเฟ่กับเพื่อนต้องใส่แบบนี้","เที่ยวตลาดนัดก็ต้องสไตล์","ไลฟ์สไตล์คนชอบความสบาย","ชีวิตดีๆ ต้องมีเสื้อดีๆ ด้วย","กาแฟหนึ่งแก้ว เสื้อหนึ่งตัว วันดีๆ","ไลฟ์สไตล์ที่ balanced ทั้ง comfort และ style","วันนี้ทำอะไร? ก็ดูดีอยู่ดีนั่นแหละ","สไตล์ที่เข้ากับไลฟ์สไตล์จริงๆ ของคุณ","ไลฟ์สไตล์ active แต่ยังต้องดูดี","เดินเล่นในเมือง ลุคนี้เหมาะมาก","ไลฟ์สไตล์ relaxed ที่มีสไตล์ในตัวเอง"],
+"เปรียบเทียบสี":["สีไหนน่าใส่กว่า? โหวตเลย!","2 สี 1 เสื้อ คุณเลือกไหน?","เปรียบเทียบสีก่อนตัดสินใจ","สีใหม่มาแล้ว! เทียบกับสีเดิม","สีสันทั้งหมดในคอลเลกชันนี้","สีไหนที่ทำให้คุณหยุดเลื่อน?","เปรียบเทียบ neutral tone vs bold color","สีเอิร์ธโทนคุณชอบสีไหนมากที่สุด?","แต่ละสีให้ vibe ต่างกันยังไง?","สีใหม่ที่เพิ่งเปิดตัว เทียบกับสีเดิม","สีที่ขายดีที่สุด vs สีที่น่าสนใจที่สุด","คุณเป็นคน classic หรือ bold?","สีฤดูร้อน vs สีตลอดปี","3 สีใหม่มาแล้ว คุณชอบตัวไหน?","สีที่เข้ากับผิวทุกโทนสี","เปรียบเทียบสีก่อนและหลังซัก","สีไหนจับคู่กับกางเกงสีดำได้ดีกว่า?","สีที่เหมาะกับ mood แต่ละวัน","เปรียบสี light กับ dark tone","สีใหม่ที่หลายคนรอมานาน","คุณมี mood วันนี้แบบไหน เลือกสีนี้","เปรียบเทียบสีบนโมเดลจริง","สีที่ดูแพงกว่าราคาจริงมาก","สีที่จะทำให้ตู้เสื้อผ้าครบสมบูรณ์"],
+"สถานที่":["เจอกันที่ร้านได้เลยนะ","แวะมาลองก่อนตัดสินใจซื้อ","ร้านเราอยู่ที่ไหน? มาดูกัน","บรรยากาศร้านวันนี้สวยมาก","เปิดทุกวัน ยินดีต้อนรับทุกคน","มาลองสวมใส่ของจริงที่ร้านได้เลย","ทีมงานยินดีให้คำแนะนำทุกคน","จตุจักร เสาร์-อาทิตย์ เจอกันนะ","Future Park รังสิต เปิดทุกวัน","มาเลือกสีมาเลือกไซส์ที่ร้านได้เลย","บรรยากาศร้านจตุจักรที่ชอบมาก","แวะมาช้อปที่ร้านได้ทุกวัน","ร้านเราน่ารักมาก มาถ่ายรูปด้วยได้เลย","เดินจตุจักร ต้องแวะร้านเรา","Future Park เจอกันชั้นไหน? มาบอกกัน","ร้านใหม่! Location เข้าหาง่าย","สินค้ามาครบ ลองได้เต็มๆ ที่ร้าน","เปิดร้านใหม่แล้ว มาเยี่ยมกันด้วย","พิกัดร้านและเวลาเปิด-ปิด","มาที่ร้านแล้วจะไม่ผิดหวัง","เจอกันที่ร้านแล้วจะได้รับส่วนลดพิเศษ","แวะมาดูสินค้าใหม่ที่ร้านก่อนใคร","ร้านเราขยายพื้นที่แล้ว สินค้าครบกว่าเดิม","Location ใหม่พร้อมสต็อกใหม่!"],
+};
+
+function makeCaption(prod,type,seq){
+  const p=prod.n, pr=prod.p, n=seq%6;
+  const bodies={
+"โปรดักต์โชว์เคส":[
+`✨ ${p} มาแล้ว!\n\nเนื้อผ้าคุณภาพสูง ซักแล้วสีไม่ตก ทรงไม่เสีย ราคา ${pr} บาทเท่านั้น\nมีหลายสีให้เลือก เข้ากับกางเกงทุกสี\n\n👉 กดลิงก์ใน Bio สั่งซื้อได้เลย!\n\n#Huck1980 #แฟชั่นไทย #เสื้อผ้าคุณภาพดี #สตรีทแวร์ #มีติดตู้กันหรือยังเอ่ย`,
+`🔥 ${p} — ของดีราคาเป็นมิตร!\n\nออกแบบมาเพื่อคนชอบใส่สบายแต่ยังดูดี ราคา ${pr} บาท\nใส่ทำงานก็ได้ ไปเที่ยวก็สวย ไม่ต้องเปลี่ยนชุด\n\n💬 คอมเมนต์ 'สนใจ' แล้วทีมงานจะติดต่อกลับ!\n\n#Huck1980 #ของดีราคาไม่แพง #แฟชั่นราคาเบา #สตรีทแวร์ไทย`,
+`💛 ${p} เข้ามาแล้ว!\n\nผ้า premium เนื้อแน่น ไม่บาง ไม่ร้อน ระบายอากาศดีเหมาะกับอากาศไทย\nราคาเพียง ${pr} บาท ได้ของดีกว่าราคาไปมาก\n\n🔔 กด Follow เพื่อไม่พลาด New Drop ทุกสัปดาห์!\n\n#Huck1980 #เสื้อผ้าไทย #แฟชั่นมินิมอล #ของดี`,
+`📣 ${p} สีสันสดใส ไม่ตกเทรนด์!\n\nใส่ได้ตลอดปี ลูกค้ากลับมาซื้อซ้ำทุกครั้ง ราคา ${pr} บาท\n\n🏷️ แท็กเพื่อนที่น่าจะชอบตัวนี้ด้วยนะ!\n\n#Huck1980 #มีติดตู้กันหรือยังเอ่ย #สตรีทแวร์ #ไทยแฟชั่น`,
+`⚡ ${p} — ดีไซน์ clean สุดๆ!\n\nดีไซน์เรียบง่าย แต่ดูดีและมีสไตล์ ราคา ${pr} บาทคุ้มมาก\nเป็นไอเทมที่ต้องมีในตู้เสื้อผ้าทุกคน\n\n📍 แวะมาลองที่ร้านได้ จตุจักร หรือ Future Park รังสิต!\n\n#Huck1980 #แฟชั่นไทย #เสื้อผ้าสวย #สตรีทแวร์`,
+`🌿 ${p} เนื้อผ้านุ่มสัมผัสดี!\n\nใส่สบายตลอดวัน ทรงสวยพอดีตัว ราคา ${pr} บาทเท่านั้น\nสต็อกมีจำกัด อย่าให้พลาดนะ!\n\n🛒 DM มาถามได้เลย พร้อมตอบทุกคำถาม!\n\n#Huck1980 #สตรีทแวร์ไทย #เสื้อผ้าคุณภาพ #แฟชั่น`,
+],
+"เบื้องหลัง":[
+`🎬 เบื้องหลังการแพ็คออเดอร์ ${p}!\n\nวันนี้ทีมงานแพ็คไปกว่า 200 ชิ้น ทุกชิ้นผ่านการตรวจสอบคุณภาพก่อนส่งเสมอ เราใส่ใจทุกรายละเอียดเพราะรู้ว่าคุณรอ\n\n#Huck1980 #เบื้องหลัง #แพ็คออเดอร์ #ทีมงาน #ร้านเสื้อผ้าไทย`,
+`📦 BTS: เตรียม ${p} ก่อนเปิดร้าน!\n\nก่อนเปิดร้านทุกเช้า ทีมงานต้องเช็คสต็อกและจัดเรียงสินค้าใหม่ เพื่อให้ลูกค้าเห็นสินค้าครบและชัดเจนที่สุด\n\n#Huck1980 #BTS #เบื้องหลัง #ร้านเสื้อผ้า`,
+`🏪 เปิดกล่องสินค้าใหม่ ${p}!\n\nคนในทีมดีใจมากเมื่อเห็นสีและเนื้อผ้าที่ออกมาสวยงาม สต็อกใหม่มาแล้ว!\n\n#Huck1980 #สินค้าใหม่ #เบื้องหลัง #BTS`,
+`☀️ บรรยากาศร้านจตุจักรวันเสาร์!\n\nลูกค้าแน่นมาก ขอบคุณทุกคนที่แวะมานะ ทีมงานยินดีต้อนรับเสมอ ${p} มีให้เลือกครบทุกสี\n\n#Huck1980 #จตุจักร #ร้านเสื้อผ้า #เบื้องหลัง`,
+`🔍 ตรวจสอบคุณภาพ ${p} ก่อนส่งทุกชิ้น!\n\nทีมงานนับสต็อกก่อนเปิดรอบใหม่ ใครรอสินค้าอยู่ ไม่นานแล้วนะ\n\n#Huck1980 #คุณภาพดี #เบื้องหลัง #ทีมงาน`,
+`✈️ แพ็คออเดอร์ต่างประเทศวันนี้!\n\nลูกค้าจากสิงคโปร์และญี่ปุ่นก็สั่ง ${p} เพราะของดีมันไม่มีพรมแดน!\n\n#Huck1980 #ส่งต่างประเทศ #เบื้องหลัง #BTS`,
+],
+"Engagement":[
+`🤔 ช่วยตัดสินใจหน่อยนะ!\n\nคุณชอบ ${p} แบบไหนมากกว่ากัน?\n\nA) ใส่ไปทำงาน ดูดี professional\nB) ใส่เที่ยวสุดสัปดาห์ chill\nC) ใส่อยู่บ้านก็ยังดู\n\nคอมเมนต์ A, B หรือ C ได้เลย! 👇\n\n#Huck1980 #ถามตอบ #มีติดตู้กันหรือยังเอ่ย`,
+`🎨 สำหรับ ${p} คุณชอบสีไหน?\n\n🌿 Earthy tone → ดูเป็นธรรมชาติ\n🔵 Cool blue → ดูสดชื่น\n⚫ Classic black → ใส่ได้ทุกที่\n\nคอมเมนต์มาบอกกัน!\n\n#Huck1980 #โหวตสี #แฟชั่นไทย #ถามตอบ`,
+`👥 แท็กเพื่อนที่อยากให้เห็น ${p} ตัวนี้!\n\nซื้อคู่กับเพื่อนแล้วจะรู้สึกดีขึ้นอีก\n\n#Huck1980 #แท็กเพื่อน #มีติดตู้กันหรือยังเอ่ย #Engagement`,
+`💭 ถ้าต้องเลือกลุคจาก ${p} คุณเลือกแบบไหน?\n\n1) Casual ง่ายๆ ใส่ทุกวัน\n2) Smart casual ดูโตขึ้น\n3) Street style มีสไตล์\n\n#Huck1980 #ถามตอบ #สตรีทแวร์ไทย`,
+`💾 เซฟโพสต์นี้ก่อนนะ!\n\nแล้วค่อยกลับมาดู ${p} เมื่อพร้อมจะช้อป หรือถ้าพร้อมแล้ว กดลิงก์ใน Bio ได้เลย!\n\n#Huck1980 #เซฟไว้ก่อน #แฟชั่นไทย`,
+`#มีติดตู้กันหรือยังเอ่ย สำหรับ ${p}?\n\n✅ มีแล้ว ใส่อยู่\n🛒 ยังไม่มี กำลังจะสั่ง\n🤔 ยังคิดอยู่\n\nคอมเมนต์มาบอกกันด้วยนะ!\n\n#Huck1980 #Engagement #มีติดตู้กันหรือยัง`,
+],
+"สไตล์ลิ่ง":[
+`✨ จับคู่ ${p} ยังไงให้ดูดีทุกวัน?\n\n👖 ยีนส์ขาตรง → ลุค everyday classic\n🩲 กางเกงลินิน → ลุค resort chill\n🖤 กางเกงสีดำ → ลุค urban minimal\n\nลองทำตามแล้วจะดีขึ้นทันที!\n\n#Huck1980 #สไตล์ลิ่ง #แต่งตัว #OOTD #ไทยแฟชั่น`,
+`💡 เคล็ดลับแต่งตัวกับ ${p}:\n\n✅ จับคู่กับสีเอิร์ธโทนเสมอ\n✅ รองเท้าสีขาวหรือดำ ดูดีทุกที\n✅ กระเป๋าแคนวาสหรือ tote bag เข้ากันสุดๆ\n\n#Huck1980 #StyleTips #แต่งตัวง่ายดูดี #MixAndMatch`,
+`🌈 3 ลุคจาก ${p} ตัวเดียว:\n\n🌅 เช้า: จับคู่กับกางเกงสีครีม ดูสบาย\n☀️ กลางวัน: เปลี่ยนเป็นยีนส์ ดูดีขึ้นทันที\n🌙 เย็น: เพิ่ม layer jacket ดูมีสไตล์\n\n#Huck1980 #3ลุค #สไตล์ลิ่ง #แต่งตัว`,
+`👗 ${p} เหมาะกับทุก body type!\n\nทรงเสื้อออกแบบให้ดูดีทั้งคนตัวเล็กและใหญ่ สีไม่ดูแปลกบนผิวโทนไหน\n\n#Huck1980 #AllBodyType #แฟชั่นไทย #สไตล์`,
+`🔄 Mix & Match ${p} กับของที่มีในตู้:\n\n🟤 Earthy + น้ำตาลอ่อน = perfect\n⚫ Dark color + พาสเทล = contrast ดี\n🌿 Nature tone + ขาว = fresh สุดๆ\n\n#Huck1980 #MixAndMatch #แฟชั่น #สไตล์ลิ่ง`,
+`🌍 ใส่ ${p} ไปที่ไหนก็ได้:\n\n☕ คาเฟ่ / 🛒 ตลาดนัด / 🏖️ ทะเล / 🏢 ออฟฟิศ casual\n\nตัวเดียว versatile มากจริงๆ!\n\n#Huck1980 #Versatile #สไตล์ #แต่งตัวง่าย`,
+],
+"โปรโมชัน":[
+`💥 วันนี้เท่านั้น! ${p} ราคาพิเศษ!\n\n⏰ หมดเที่ยงคืนคืนนี้\n📦 สต็อกมีจำกัด\n🚀 สั่งเลยก่อนหมด!\n\n#Huck1980 #โปรโมชัน #แฟลชเซล #ลดราคา`,
+`🎉 ซื้อ ${p} 2 ตัว ลด 15%!\n\nซื้อคู่กับเพื่อนหรือซื้อ 2 สีก็คุ้มมาก ไม่ควรพลาดเลย!\n\n#Huck1980 #โปรโมชัน #ลดราคา #ซื้อ2`,
+`⚡ แฟลชเซล ${p}!\n\nราคาพิเศษสำหรับ 24 ชั่วโมงเท่านั้น หลังจากนี้ราคาจะกลับไปปกติ\n\n#Huck1980 #FlashSale #ของดีราคาถูก #ช้อปปิ้ง`,
+`🛒 ช้อปครบ 300 บาทขึ้นไป ฟรีค่าส่งทั่วไทย!\n\nสั่ง ${p} วันนี้รับส่วนลดเพิ่มเติม\n\n#Huck1980 #ฟรีค่าส่ง #โปรโมชัน #ประหยัด`,
+`🎁 Bundle Deal! ${p} + กางเกงลินิน = ราคาพิเศษมาก!\n\nซื้อ set ประหยัดกว่าซื้อทีละตัว\n\n#Huck1980 #BundleDeal #ช้อปปิ้ง #โปรโมชัน`,
+`⏳ 3 วันสุดท้ายของโปร! ${p}\n\nยังมีสต็อกเหลืออยู่ รีบสั่งก่อนหมดนะ!\n\n#Huck1980 #โปรสุดท้าย #รีบเลย #ลดราคา`,
+],
+"รีวิวลูกค้า":[
+`⭐⭐⭐⭐⭐ รีวิวจริงจากลูกค้า:\n\n"ซื้อ ${p} มาแล้ว 3 ตัว เนื้อผ้าดีมากทุกตัว ซักแล้วสีไม่ตก ส่งเร็ว แพ็คดี จะกลับมาซื้ออีกแน่นอน"\n\nขอบคุณที่ไว้วางใจ Huck.1980 ❤️\n\n#Huck1980 #รีวิว #ลูกค้าพอใจ #รีวิวจริง`,
+`💬 ลูกค้าบอกว่า:\n\n"${p} ดีเกินราคาจริงๆ เพื่อนถามว่าซื้อที่ไหน บอกไปแล้ว เพื่อนก็ไปสั่งต่อ"\n\nดีใจมากที่ได้รับรีวิวแบบนี้ 🙏\n\n#Huck1980 #รีวิวลูกค้า #SocialProof`,
+`🌟 รีวิวจากลูกค้าประจำ:\n\n"ซื้อมาแล้ว 5 ครั้ง ทุกครั้งประทับใจ เสื้อคุณภาพสม่ำเสมอ ราคาไม่เปลี่ยน ดีมาก"\n\n#Huck1980 #ลูกค้าประจำ #รีวิว #ของดีจริง`,
+`📸 ลูกค้าส่งรูปมาให้:\n\n"ใส่ ${p} ไปเที่ยว เพื่อนชมตลอด ถามว่าซื้อที่ไหน บอกแล้วทุกคนก็ตาม"\n\n#Huck1980 #รีวิวจริง #ลูกค้าพอใจ`,
+`❤️ ลูกค้ากลับมาซื้อซ้ำอีกครั้ง:\n\n"เคยซื้อ ${p} ไปแล้ว ใส่แล้วชอบมาก ตอนนี้กลับมาซื้ออีกสีนึง เสพติดจริงๆ"\n\n#Huck1980 #กลับมาซื้อซ้ำ #รีวิว`,
+`🏆 ลูกค้า VIP พูดว่า:\n\n"Huck.1980 คือร้านที่ไว้ใจได้ สินค้าตรงตามที่โฆษณา ราคายุติธรรม ส่งเร็วมาก"\n\n#Huck1980 #ไว้ใจได้ #รีวิวลูกค้า #ของดีจริง`,
+],
+"ลุคบุ๊ก":[
+`📖 Lookbook ${p} — คอลเลกชันล่าสุด!\n\nรวมลุคสวยๆ จากสินค้าตัวเดียว สไตล์ต่างกันได้หลายแบบ เซฟไว้เป็นไอเดียแต่งตัวได้เลย!\n\n#Huck1980 #ลุคบุ๊ก #Lookbook #แฟชั่นไทย`,
+`🌿 Lookbook ฤดูร้อน: ${p}\n\nลุคที่เหมาะกับอากาศร้อนๆ ของไทย ใส่สบาย ดูดี ถ่ายรูปสวย\n\n#Huck1980 #Lookbook #ลุคร้อน #แฟชั่น`,
+`✨ Editorial Lookbook: ${p}\n\n4 ลุค 4 สไตล์ จากเสื้อตัวเดียวกัน พิสูจน์ว่าของดีใส่ได้หลายแบบ\n\n#Huck1980 #EditorialLook #ลุคบุ๊ก #สไตล์ไทย`,
+`🏙️ Urban Lookbook: ${p}\n\nลุคสำหรับคนเมืองที่ชอบความสบายและสไตล์ในเวลาเดียวกัน\n\n#Huck1980 #UrbanStyle #Lookbook #แฟชั่นเมือง`,
+`🌊 Resort Lookbook: ${p}\n\nลุคสบายๆ สำหรับไปทะเล ทริปสั้น หรือวันพักผ่อน\n\n#Huck1980 #ResortStyle #ลุคทะเล #Lookbook`,
+`☕ Cafe Lookbook: ${p}\n\nลุคที่เหมาะกับการนั่งคาเฟ่ ถ่ายรูปลง IG สวยทุกมุม\n\n#Huck1980 #CafeLook #ลุคบุ๊ก #แฟชั่นไทย`,
+],
+"OOTD":[
+`👗 OOTD วันนี้ ft. ${p}\n\nใส่แล้วรู้สึกดีตั้งแต่เช้า เนื้อผ้านุ่ม ทรงดี ดูดีทุกมุม\nวันนี้คุณใส่อะไร? มาแชร์กันด้วยนะ!\n\n#Huck1980 #OOTD #แต่งตัว #ลุควันนี้`,
+`🌅 OOTD เช้านี้: ${p}\n\nจับคู่กับกางเกงสีครีม ใส่ไปทำงานได้เลย ดูสะอาดตา\n\n#Huck1980 #OOTD #แต่งตัวไปทำงาน #แฟชั่นไทย`,
+`✨ OOTD วันหยุด: ${p}\n\nวันหยุดต้องสบาย แต่ก็ต้องดูดีด้วย ตัวนี้ตอบโจทย์มาก\n\n#Huck1980 #OOTD #วันหยุด #แฟชั่น`,
+`📸 OOTD กับ ${p} ที่เพื่อนถามว่าซื้อที่ไหน\n\nตอบได้เลยว่า Huck.1980 ราคาดีมากด้วย!\n\n#Huck1980 #OOTD #ไทยแฟชั่น`,
+`🌿 OOTD minimal: ${p}\n\nลุคที่ไม่ต้อง accessorize มาก แค่เสื้อตัวนี้ก็สวยแล้ว\n\n#Huck1980 #MinimalOOTD #แฟชั่น #สไตล์`,
+`💛 OOTD ไปเที่ยวกับ ${p}\n\nเดินห้างก็ดี ไปตลาดก็ดี ใส่ได้ทุกที่จริงๆ\n\n#Huck1980 #OOTD #ไปเที่ยว #แฟชั่นไทย`,
+],
+"เทรนด์":[
+`📈 เทรนด์ที่กำลัง HOT และ ${p} ตอบโจทย์ทุกอย่าง!\n\nสไตล์นี้กำลังมาแรงมากบน TikTok และ Instagram ทั้งไทยและต่างประเทศ\n\n#Huck1980 #เทรนด์แฟชั่น #Trending #แฟชั่น2025`,
+`🔥 ${p} กำลัง trending ในซีซันนี้!\n\nเห็นได้ทุกที่ทั้งในโซเชียลมีเดียและบนท้องถนน เป็น must-have item จริงๆ\n\n#Huck1980 #TrendAlert #สไตล์ฮิต #แฟชั่นมาแรง`,
+`🌍 เทรนด์จากทั่วโลกมาถึงไทยแล้ว!\n\n${p} ของเราตรงกับเทรนด์นี้พอดี ไม่ต้องซื้อแพง\n\n#Huck1980 #เทรนด์ไทย #แฟชั่นโลก #Trending`,
+`💫 ทำไม ${p} ถึง trending อยู่ตอนนี้?\n\nเพราะผสมระหว่างความสบายและสไตล์ได้ลงตัวที่สุด เหมาะกับยุคนี้มาก\n\n#Huck1980 #เทรนด์ #แฟชั่น`,
+`📲 เทรนด์ TikTok ที่กำลัง viral: ${p}\n\nหลายคนกำลังทำคอนเทนต์กับสไตล์นี้อยู่\n\n#Huck1980 #TikTokTrend #ไวรัล #เทรนด์`,
+`🎨 เทรนด์สีของซีซันนี้เข้ากับ ${p} พอดีเลย!\n\nสีเอิร์ธโทนและ neutral ยังคงมาแรงต่อเนื่อง\n\n#Huck1980 #เทรนด์สี #EarthTone #แฟชั่น`,
+],
+"Unboxing":[
+`📦 Unboxing ${p} จาก Huck.1980!\n\nมาดูสินค้าจริงก่อนตัดสินใจซื้อ ดูทั้งสี เนื้อผ้า ทรง ครบในคลิปเดียว\n\n#Huck1980 #Unboxing #รีวิวจริง #เปิดกล่อง`,
+`🎁 เปิดกล่อง ${p} พร้อมรีวิวสดๆ!\n\nของจริงดีกว่าในรูปหรือเปล่า? มาดูพร้อมกัน\n\n#Huck1980 #Unboxing #รีวิว #ช้อปปิ้งออนไลน์`,
+`🔍 Unboxing honest ไม่มีโกหก: ${p}\n\nดูเนื้อผ้าจริง เทียบกับรูปในโฆษณา บอกตรงๆ ทุกอย่าง\n\n#Huck1980 #HonestReview #Unboxing #รีวิวจริง`,
+`✅ First impression: ${p}\n\nแกะกล่องครั้งแรก รู้สึกยังไง? เนื้อผ้าดีไหม? ทรงตรงไหม?\n\n#Huck1980 #FirstImpression #Unboxing`,
+`🌟 Unboxing ${p} ที่รอมานาน!\n\nสั่งมาแล้ว ของมาถึงแล้ว มาเปิดดูพร้อมกัน\n\n#Huck1980 #Unboxing #ของมาแล้ว`,
+`👁️ ดูสินค้าจริงของ ${p} ก่อนกดสั่ง\n\nเราแสดงให้เห็นทุก detail ทั้งด้านหน้า ด้านหลัง ตะเข็บ และเนื้อผ้า\n\n#Huck1980 #รีวิว #Unboxing #ของดีจริง`,
+],
+"ไลฟ์สไตล์":[
+`🌅 ชีวิตดีๆ เริ่มจากการแต่งตัวที่ใช่!\n\n${p} เป็นส่วนหนึ่งของวันสบายๆ ที่ทุกคนอยากมี\n\n#Huck1980 #ไลฟ์สไตล์ #ชีวิตดีๆ #GoodVibes`,
+`☕ กาแฟหนึ่งแก้ว + ${p} = วันที่สมบูรณ์แบบ\n\nไลฟ์สไตล์ง่ายๆ แต่มีคุณค่า\n\n#Huck1980 #ไลฟ์สไตล์ #คาเฟ่ #สบาย`,
+`🌿 ${p} กับไลฟ์สไตล์ minimal ที่หลายคนอยากมี\n\nสบาย เรียบ มีสไตล์ ไม่ต้องพยายามมาก\n\n#Huck1980 #MinimalLife #ไลฟ์สไตล์`,
+`🏙️ คนเมืองต้องการ ${p} ในชีวิตประจำวัน\n\nใส่ขึ้นรถไฟฟ้า เดินในเมือง หรือนั่งทำงาน ดูดีทุกสถานการณ์\n\n#Huck1980 #ไลฟ์สไตล์ #คนเมือง #แฟชั่น`,
+`🌊 วันหยุดพักผ่อนที่สมบูรณ์แบบ + ${p}\n\nชีวิตดีๆ ไม่ต้องซับซ้อน\n\n#Huck1980 #วันหยุด #ไลฟ์สไตล์ #สบาย`,
+`🎵 เพลงชิลๆ + ${p} = ความสุขง่ายๆ\n\nไลฟ์สไตล์แบบนี้ทุกคนก็ทำได้\n\n#Huck1980 #ChillLife #ไลฟ์สไตล์ #สบาย`,
+],
+"เปรียบเทียบสี":[
+`🎨 ${p} มีกี่สี? มาดูทั้งหมดกัน!\n\nแต่ละสีให้ฟีลและ vibe ต่างกันมาก เลือกได้ตามอารมณ์\n\nคุณชอบสีไหน? 👇\n\n#Huck1980 #เปรียบเทียบสี #ColorMatch #แฟชั่นไทย`,
+`🌈 เปรียบสี ${p}:\n\n🟤 น้ำตาลดิน → earthy ดูเป็นธรรมชาติ\n🔵 ฟ้าเทา → cool ดูสดชื่น\n⚫ ดำ → classic ใส่ได้ทุกที่\n\n#Huck1980 #เลือกสี #ColorPalette`,
+`✨ ${p} สีใหม่มาแล้ว! เทียบกับสีเดิมเลย\n\nสีใหม่ดูดีกว่าหรือต่างยังไง? มาดูกัน\n\n#Huck1980 #สีใหม่ #เปรียบเทียบ`,
+`🌟 สี light vs dark ใน ${p}\n\nทั้งสองสีดูดีในแบบของตัวเอง ใช้ occasion ต่างกัน\n\n#Huck1980 #LightVsDark #เปรียบสี`,
+`💛 สีที่ขายดีที่สุดของ ${p} คือสีอะไร?\n\nลูกค้าเลือกสีนี้บ่อยที่สุด แต่ทุกสีก็ดีนะ!\n\n#Huck1980 #ขายดี #สีสวย #ชอบสีไหน`,
+`🎯 สีที่เข้ากับผิวคนไทยมากที่สุดสำหรับ ${p}\n\nผิวสองสี ผิวเข้ม ผิวขาว ก็ใส่ได้หมด\n\n#Huck1980 #สีที่เหมาะ #เปรียบเทียบสี`,
+],
+"สถานที่":[
+`📍 มาหาเราได้ที่:\n\n🏪 จตุจักร มาร์เก็ต — เปิดทุกเสาร์-อาทิตย์\n🏬 Future Park รังสิต — เปิดทุกวัน\n\nมาลองสวมใส่ ${p} จริงๆ ก่อนซื้อได้เลย!\n\n#Huck1980 #จตุจักร #FutureParkรังสิต #ร้านเสื้อผ้า`,
+`🗺️ ร้าน Huck.1980 ที่จตุจักรวันนี้สินค้าเต็มมาก!\n\nมาแวะเยี่ยมเรา ${p} มีสต็อกครบทุกสี ทีมงานยินดีต้อนรับ\n\n#Huck1980 #จตุจักร #ร้านเสื้อผ้า`,
+`🛍️ Future Park รังสิต เปิดทุกวัน!\n\n${p} มีสต็อกครบทุกสี ทุกไซส์ที่ร้าน มาลองก่อนซื้อได้เลย\n\n#Huck1980 #FuturePark #รังสิต #ร้านเสื้อผ้า`,
+`☀️ วันเสาร์ที่จตุจักร บรรยากาศดีมาก!\n\nมาเดินเล่น ดูสินค้า แล้วแวะมาที่ร้านเรา ${p} มีให้เลือกเยอะมาก\n\n#Huck1980 #จตุจักร #วันเสาร์`,
+`📸 บรรยากาศในร้านวันนี้สวยมาก!\n\nสินค้าจัดเรียงใหม่ สวยงาม ถ่ายรูปได้ทุกมุม แวะมาดูได้นะ\n\n#Huck1980 #BTS #ร้านสวย #แวะมาเลย`,
+`🌟 ร้านเราที่ Future Park รังสิต รีโนเวทใหม่แล้ว!\n\nพื้นที่กว้างขึ้น สินค้าครบกว่าเดิม มาเยี่ยมได้เลย\n\n#Huck1980 #FuturePark #ร้านใหม่`,
+],
+  };
+  const arr = bodies[type] || bodies["โปรดักต์โชว์เคส"];
+  return arr[n % arr.length];
+}
+
+const VISUALS={
+"โปรดักต์โชว์เคส":["ถ่าย flat lay บนพื้นขาว วาง{p}พร้อมกิ่งไม้เขียว แสงสตูดิโอนุ่ม","โมเดลสวม{p}ยืนหน้าผนังปูนเปลือย แสงธรรมชาติ ถ่ายแนวตั้ง","โคลสอัพเนื้อผ้า{p}เน้นรายละเอียดผ้าและสี macro lens","สินค้าหลายสีเรียงบนชั้นไม้ แสงอุ่น บรรยากาศร้านค้า","โมเดลถือ{p}ยืนที่จตุจักร พื้นหลังร้านค้าสีสัน","Flat lay บน texture ไม้ วาง{p}พร้อมกาแฟและนิตยสาร"],
+"เบื้องหลัง":["วิดีโอ timelapse การแพ็คออเดอร์ มือทีมงานพับ{p}ลงกล่อง","ภาพโกดังสินค้า ชั้นเต็มไปด้วย{p}สีสันต่างๆ","ทีมงานนับสินค้า ถ่ายมุมบนลงล่าง","หน้าร้านจตุจักรตอนเช้า ทีมงานกำลังเตรียมของ","Close-up มือตรวจเนื้อผ้า{p}ก่อนแพ็ค","Walk-through โกดัง แสดงสต็อก{p}จำนวนมาก"],
+"Engagement":["ภาพ{p}2สีวางเคียงกัน ใส่ตัวอักษรถาม 'คุณชอบสีไหน?'","โมเดลยืนถือเสื้อ2ตัว ใส่ sticker ถาม A vs B","Flat lay ใส่ text overlay คำถาม กรอบสีทอง","GIF animation ตัวอักษรกระพริบถาม 'มีติดตู้กันหรือยัง?'","ภาพโมเดลพร้อม text 'แท็กเพื่อน' ขนาดใหญ่","Poll graphic สีดำทอง 2 ตัวเลือก"],
+"สไตล์ลิ่ง":["Collage 3 ลุคจาก{p}ตัวเดียว วางเรียงแนวนอน แต่ละลุค caption สั้น","วิดีโอ transition เร็ว เปลี่ยนกางเกง3แบบกับ{p}","Flat lay แสดง{p}+3 combination ต่างกัน ลูกศรชี้","โมเดลใส่ลุคสมบูรณ์ ยืน outdoor แสงบ่าย golden hour","Before/After เสื้อธรรมดา vs เพิ่ม{p}เข้าไปแล้วดูดีขึ้น","Carousel รูป เริ่มจาก{p}ตัวเปล่า ตามด้วย4ลุคต่างกัน"],
+"โปรโมชัน":["Graphic โปรโมชัน พื้นดำ ตัวอักษรทองขนาดใหญ่ แสดงราคาพิเศษ","Flash effect บนภาพ{p}พร้อม countdown timer","ภาพ{p}พร้อม ribbon SALE มุมขวาบน","Collage{p}หลายตัวพร้อม price tag","วิดีโอ15วินาที แสดง{p}เร็ว จบด้วย CTA","Graphic bundle แสดง{p}2ตัวและราคารวม"],
+"รีวิวลูกค้า":["Screenshot รีวิวจริงจากลูกค้า บน background สีครีม","รูปลูกค้าจริงสวม{p}ถ่ายในชีวิตจริง","Star rating graphic พร้อม quote จากลูกค้า","Collage รูปลูกค้าหลายคนสวม{p}สีต่างกัน","Text card รีวิวพร้อมชื่อลูกค้า background อ่านง่าย","วิดีโอ reaction ลูกค้าเปิดกล่อง{p}พร้อม caption"],
+"ลุคบุ๊ก":["Editorial-style ถ่ายในสตูดิโอ แสงสวย โมเดล1-2คนใส่{p}","ถ่าย outdoor ในเมือง บันไดหรือตรอกที่ดูดี โมเดลสวม{p}","Grid 4รูป แต่ละรูปลุคต่างกัน จาก{p}ตัวเดียว","Mood board สีโทนอุ่น รูป{p}+texture+พืช","ถ่ายในคาเฟ่ผนังขาว แสงธรรมชาติจากหน้าต่าง โมเดลสวม{p}","ถ่ายที่ทะเลหรือสวน ธรรมชาติเป็นฉากหลัง สวม{p}"],
+"OOTD":["ถ่ายกระจกเต็มตัว สวม{p}ไลท์ติ้ง bedroom อุ่น","Street photo เดินในเมือง ถ่ายแบบ candid สวม{p}","รูปชัด upper body ยืนคาเฟ่ แสงหน้าต่าง สวม{p}","Flat lay เสื้อผ้าวันนี้ วาง{p}บนเตียง","ถ่าย 3/4 ยืนในสวน แสงธรรมชาติ green background สวม{p}","วิดีโอ get-ready สั้น แต่งตัวพร้อมออกไปกับ{p}"],
+"เทรนด์":["Collage แสดงเทรนด์ใน TikTok vs {p}เคียงกัน","Infographic สั้น 'เทรนด์ที่กำลังมา' พร้อมรูป{p}","วิดีโอ transition เทรนด์ → {p}ของ Huck.1980 ตรงกัน","Mood board เทรนด์ฤดูกาล สีและสไตล์ พร้อม{p}","Screenshot จาก TikTok trend พร้อมลูกศรชี้ว่าเข้ากับ{p}","Graphic 'เทรนด์ปีนี้' พร้อมตัวอย่าง{p}"],
+"Unboxing":["วิดีโอมือแกะกล่อง{p}slow motion แสงดี เสียงกล่อง ASMR","Flat lay ของใน{p}ที่แกะแล้ว จัดเรียงสวย","Before/After ปิดกล่อง vs เปิดกล่องเห็น{p}","Close-up เนื้อผ้า{p}หลังเปิดกล่อง macro lens","วิดีโอ reaction ขณะเห็น{p}ครั้งแรก","Side by side รูปโฆษณา vs {p}จริงในกล่อง"],
+"ไลฟ์สไตล์":["ถ่าย lifestyle ในคาเฟ่ นั่งถือกาแฟ สวม{p}แสงอุ่น","ถ่ายกลางแจ้ง ยืนในสวน เดินเล่น ดู candid สวม{p}","รูปเช้า นั่งดื่มกาแฟ+{p}+ธรรมชาติ","วิดีโอ a day in life สั้น15วินาที ใส่{p}ตลอดวัน","ภาพกลุ่มเพื่อนออกไปข้างนอก ทุกคนใส่ Huck.1980","Slow motion วิ่งหรือเดิน ผ้า{p}โบก ดูมีชีวิต"],
+"เปรียบเทียบสี":["{p}เรียงสีแนวตั้ง 4-6สี บนพื้นขาว แสงสม่ำเสมอ","วิดีโอ transition เปลี่ยนสี{p}ทีละสี เร็วและสวย","โมเดลสวม{p}สีต่างกัน split screen เปรียบเทียบ","Flat lay {p}ทุกสีวางรอบกัน top-down shot","Graphic ชื่อสีแต่ละตัวพร้อม swatch สี ของ{p}","วิดีโอ carousel รูปสีต่างๆ ของ{p}เปลี่ยนช้าๆ"],
+"สถานที่":["ถ่ายหน้าร้านจตุจักร ป้ายชัดเจน บรรยากาศตลาด {p}วางขาย","ถ่าย interior ร้าน แสดง{p}เรียงสวยบนแร็ค","Map screenshot พร้อมพิน location ร้านทั้ง2สาขา ขาย{p}","วิดีโอ walk-through ร้าน แสดงสต็อก{p}เต็ม","ถ่ายทีมงานยิ้มอยู่ในร้าน บรรยากาศอบอุ่น {p}อยู่ข้างหลัง","ภาพลูกค้ากำลังเลือก{p}ในร้าน บรรยากาศจริง"],
+};
+
+function makeVisual(prod,type,seq){
+  const arr=VISUALS[type]||VISUALS["โปรดักต์โชว์เคส"];
+  return arr[seq%arr.length].replace(/\{p\}/g,prod.n);
+}
+
+// Build 1000 items
+const EXTRAS=[
+  ["เสื้อฮาวายฟรีไซส์ ลายสดใส","เสื้อฮาวาย","โปรโมชัน","Facebook"],
+  ["กางเกงลินินขายาว มีกระเป๋าข้าง","กางเกงลินิน","OOTD","TikTok"],
+  ["เสื้อกำมะหยี่ฟรีไซส์ สัมผัสนุ่มพิเศษ","เสื้อกำมะหยี่","เทรนด์","TikTok"],
+  ["เสื้อโปโลเรียบแขนสั้น ใส่ได้ทุกวัน","เสื้อโปโล","ลุคบุ๊ก","Facebook"],
+  ["ฮู้ดดี้ลายทาง อบอุ่นและสไตล์มาก","เสื้อลายทาง","ไลฟ์สไตล์","TikTok"],
+  ["เสื้อคอร์ดูรอยเนื้อนุ่ม (ฟรีไซส์)","เสื้อคอร์ดูรอย","เปรียบเทียบสี","TikTok"],
+  ["เสื้อ Honeycomb ฟรีไซส์เนื้อพรีเมียม","เสื้อ Honeycomb","สถานที่","Facebook"],
+  ["กางเกงผ้าสก็อตขาสั้นฟรีไซส์","ผ้าสก็อต","รีวิวลูกค้า","TikTok"],
+  ["เสื้อลินินลายทางฟรีไซส์ ดูดีทุกซีน","เสื้อลินิน","Engagement","Facebook"],
+  ["กางเกงคอร์ดูรอยขายาวคลาสสิก","กางเกงคอร์ดูรอย","สไตล์ลิ่ง","TikTok"],
+  ["เสื้อฮาวาย XL ใส่สบาย","เสื้อฮาวาย","Unboxing","TikTok"],
+  ["เสื้อโปโลลายทางแขนยาว ดูดีกว่าที่คิด","เสื้อโปโล","เบื้องหลัง","Facebook"],
+  ["เสื้อกำมะหยี่แขนยาว อบอุ่นและสไตล์","เสื้อกำมะหยี่","โปรดักต์โชว์เคส","TikTok"],
+  ["กางเกงลินินขาสั้นเบสิกสวมใส่ง่าย","กางเกงลินิน","เทรนด์","Facebook"],
+  ["เสื้อผ้าสก็อตแขนยาว วินเทจไวบ์","ผ้าสก็อต","ลุคบุ๊ก","TikTok"],
+  ["เสื้อลายทางแขนยาว คลาสสิกทุกโอกาส","เสื้อลายทาง","โปรโมชัน","TikTok"],
+];
+
+function buildAll(){
+  const items=[]; let id=1;
+  for(let pi=0;pi<PRODUCTS.length;pi++){
+    for(let ai=0;ai<ANGLES.length;ai++){
+      const prod=PRODUCTS[pi],[type,plat]=ANGLES[ai];
+      const seq=pi*24+ai;
+      const titles=TITLES[type];
+      items.push({
+        id, product:prod.n, category:prod.c, type, platform:plat,
+        title:`${id}. ${titles[seq%titles.length]} — ${prod.n}`,
+        caption:makeCaption(prod,type,seq),
+        visual:makeVisual(prod,type,seq),
+      });
+      id++;
+    }
+  }
+  while(items.length<1000){
+    const ex=EXTRAS[items.length%EXTRAS.length];
+    const prod={n:ex[0],c:ex[1],p:169};
+    const type=ex[2],plat=ex[3],seq=items.length;
+    items.push({
+      id, product:ex[0], category:ex[1], type, platform:plat,
+      title:`${id}. ${TITLES[type][seq%TITLES[type].length]} — ${ex[0]}`,
+      caption:makeCaption(prod,type,seq),
+      visual:makeVisual(prod,type,seq),
+    });
+    id++;
+  }
+  return items.slice(0,1000);
+}
+const ALL=buildAll();
+
+// ═══════════════════════════════════════════════════════════
+// STATE & SYNC
+// ═══════════════════════════════════════════════════════════
+let doneState={};
+ALL.forEach(c=>doneState[c.id]=false);
+
+let filter={cat:"",type:"",plat:"",search:"",doneOnly:false};
+let page=1;
+const PER=20;
+const LS_KEY="huck1980_done_v3";
+
+// LocalStorage helpers
+function lsSave(){
+  try{localStorage.setItem(LS_KEY,JSON.stringify(doneState));}catch(e){}
+}
+function lsLoad(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(raw){const d=JSON.parse(raw);Object.assign(doneState,d);}
+  }catch(e){}
+}
+
+// Sync status UI
+function setSyncStatus(status,text){
+  const dot=document.getElementById('syncDot');
+  const txt=document.getElementById('syncText');
+  dot.className='sync-dot '+status;
+  txt.textContent=text;
+}
+
+// Apply remote snapshot to local state
+function applySnapshot(snap){
+  if(!snap) return;
+  ALL.forEach(c=>{
+    if(snap[c.id]!==undefined) doneState[c.id]=!!snap[c.id];
+  });
+  updateProgress();
+  renderCards();
+}
+
+// Toggle done — writes to Firebase or falls back to localStorage
+async function toggleDone(id){
+  const cb=document.querySelector(`#card-${id} .cb`);
+  if(cb) cb.classList.add('loading');
+
+  const newVal=!doneState[id];
+  doneState[id]=newVal;
+  lsSave();
+  updateProgress();
+  renderCards();
+
+  const fb=window.__firebase;
+  if(fb&&fb.isConfigured&&fb.dbRef){
+    setSyncStatus('orange','กำลังบันทึก...');
+    try{
+      await fb.update(fb.dbRef,{[id]:newVal});
+      setSyncStatus('green','ซิงก์แล้ว ✓');
+    }catch(e){
+      setSyncStatus('red','บันทึกไม่ได้ — บันทึกเฉพาะเครื่องนี้');
+    }
+  } else {
+    setSyncStatus('red','ยังไม่ได้ตั้งค่า Firebase — บันทึกเฉพาะเครื่องนี้');
+  }
+}
+window.toggleDone=toggleDone;
+
+// Init Firebase listener
+function initFirebase(){
+  const fb=window.__firebase;
+  if(!fb) return;
+
+  if(!fb.isConfigured){
+    setSyncStatus('red','ยังไม่ได้ตั้งค่า Firebase — ใช้โหมด offline');
+    document.getElementById('setupBanner').classList.add('show');
+    lsLoad();
+    updateProgress();
+    renderCards();
+    return;
+  }
+
+  setSyncStatus('orange','กำลังโหลดข้อมูลจาก Firebase...');
+
+  // Real-time listener — fires whenever ANY device changes data
+  fb.onValue(fb.dbRef,(snapshot)=>{
+    const data=snapshot.val();
+    applySnapshot(data);
+    setSyncStatus('green','เชื่อมต่อแล้ว — ซิงก์ทุกอุปกรณ์ ✓');
+  },(error)=>{
+    setSyncStatus('red','Firebase error: '+error.message);
+    lsLoad();
+    updateProgress();
+    renderCards();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════
+function getFiltered(){
+  return ALL.filter(c=>{
+    if(filter.cat&&c.category!==filter.cat)return false;
+    if(filter.type&&c.type!==filter.type)return false;
+    if(filter.plat&&c.platform!==filter.plat)return false;
+    if(filter.doneOnly&&!doneState[c.id])return false;
+    if(filter.search){
+      const s=filter.search.toLowerCase();
+      if(!c.product.toLowerCase().includes(s)&&!c.title.toLowerCase().includes(s))return false;
+    }
+    return true;
+  });
+}
+
+function updateProgress(){
+  const done=Object.values(doneState).filter(Boolean).length;
+  const pct=Math.round(done/1000*100);
+  document.getElementById('progressBadge').textContent=`✅ ${done} / 1,000 (${pct}%)`;
+  document.getElementById('progressBar').style.width=pct+'%';
+}
+
+const EMOJI={
+  "โปรดักต์โชว์เคส":"🛍️","เบื้องหลัง":"🎬","Engagement":"💬","สไตล์ลิ่ง":"✨",
+  "โปรโมชัน":"🔥","รีวิวลูกค้า":"⭐","ลุคบุ๊ก":"📖","OOTD":"👗","เทรนด์":"📈",
+  "Unboxing":"📦","ไลฟ์สไตล์":"🌅","เปรียบเทียบสี":"🎨","สถานที่":"📍"
+};
+
+function renderCards(){
+  const filtered=getFiltered();
+  const totalPages=Math.max(1,Math.ceil(filtered.length/PER));
+  if(page>totalPages) page=1;
+  const paged=filtered.slice((page-1)*PER,page*PER);
+  document.getElementById('filterCount').textContent=`แสดง ${filtered.length} รายการ`;
+
+  const con=document.getElementById('cardContainer');
+  con.innerHTML='';
+
+  paged.forEach(item=>{
+    const done=doneState[item.id];
+    const pc=item.platform==='TikTok'?'plat-tiktok':'plat-facebook';
+    const el=document.createElement('div');
+    el.className=`card${done?' done':''}`;
+    el.id=`card-${item.id}`;
+    el.innerHTML=`
+      <div class="card-row" onclick="toggleExpand(${item.id})">
+        <div class="cb${done?' checked':''}" onclick="event.stopPropagation();toggleDone(${item.id})">${done?'✓':''}</div>
+        <span class="card-id">#${String(item.id).padStart(4,'0')}</span>
+        <span class="cat-badge">${item.category}</span>
+        <span class="plat-badge ${pc}">${item.platform}</span>
+        <span class="type-badge">${EMOJI[item.type]||'📝'} ${item.type}</span>
+        <span class="card-title">${item.title}</span>
+        <span class="arrow" id="arr-${item.id}">▼</span>
+      </div>
+      <div class="card-body" id="body-${item.id}">
+        <div class="section-label">📝 แคปชัน</div>
+        <div class="caption-box">${item.caption.replace(/\n/g,'<br>')}</div>
+        <div class="section-label">🎨 ไอเดียภาพ / วิดีโอ</div>
+        <div class="visual-box"><strong>Visual Aid:</strong> ${item.visual}</div>
+        <div class="action-row">
+          <button class="btn" onclick="copyCaption(${item.id})">📋 คัดลอก Caption</button>
+          <button class="btn ${done?'btn-uncheck':'btn-check'}" onclick="toggleDone(${item.id})">${done?'↩️ ยกเลิก':'✅ ทำเสร็จแล้ว'}</button>
+        </div>
+      </div>`;
+    con.appendChild(el);
+  });
+
+  renderPagination(filtered.length,totalPages);
+  renderStats();
+}
+
+function toggleExpand(id){
+  const body=document.getElementById(`body-${id}`);
+  const arr=document.getElementById(`arr-${id}`);
+  const open=body.classList.contains('open');
+  document.querySelectorAll('.card-body.open').forEach(b=>b.classList.remove('open'));
+  document.querySelectorAll('.arrow.open').forEach(a=>a.classList.remove('open'));
+  if(!open){body.classList.add('open');arr.classList.add('open');}
+}
+window.toggleExpand=toggleExpand;
+
+function copyCaption(id){
+  const item=ALL.find(c=>c.id===id);
+  if(item&&navigator.clipboard){
+    navigator.clipboard.writeText(item.caption);
+    showToast('คัดลอก Caption แล้ว! 📋');
+  }
+}
+window.copyCaption=copyCaption;
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+function toggleDoneFilter(){
+  filter.doneOnly=!filter.doneOnly;
+  page=1;
+  document.getElementById('doneToggle').classList.toggle('active',filter.doneOnly);
+  renderCards();
+}
+window.toggleDoneFilter=toggleDoneFilter;
+
+function renderPagination(total,totalPages){
+  const pag=document.getElementById('pagination');
+  pag.innerHTML='';
+  const btn=(label,pg,active,disabled)=>{
+    const b=document.createElement('button');
+    b.className=`page-btn${active?' active':''}`;
+    b.textContent=label;
+    b.disabled=disabled;
+    if(!disabled) b.onclick=()=>{page=pg;renderCards();window.scrollTo({top:0,behavior:'smooth'});};
+    return b;
+  };
+  pag.appendChild(btn('← ก่อนหน้า',page-1,false,page===1));
+  let s=Math.max(1,page-4),e=Math.min(totalPages,s+8);
+  if(e-s<8) s=Math.max(1,e-8);
+  for(let p=s;p<=e;p++) pag.appendChild(btn(p,p,p===page,false));
+  pag.appendChild(btn('ถัดไป →',page+1,false,page===totalPages));
+}
+
+function renderStats(){
+  const done=Object.values(doneState).filter(Boolean).length;
+  const ttk=ALL.filter(c=>c.platform==='TikTok'&&doneState[c.id]).length;
+  const fb=ALL.filter(c=>c.platform==='Facebook'&&doneState[c.id]).length;
+  const cats={};
+  ALL.forEach(c=>{if(doneState[c.id]) cats[c.category]=(cats[c.category]||0)+1;});
+  const top=Object.entries(cats).sort((a,b)=>b[1]-a[1])[0];
+  const stats=[
+    {n:done,l:"ทำเสร็จแล้ว",c:"#4caf50"},
+    {n:1000-done,l:"คงเหลือ",c:"#e8b423"},
+    {n:ttk,l:"TikTok เสร็จ",c:"#ff2d55"},
+    {n:fb,l:"Facebook เสร็จ",c:"#1877f2"},
+    {n:PRODUCTS.length,l:"สินค้าทั้งหมด",c:"#9c27b0"},
+    {n:top?top[1]:0,l:top?`${top[0]} มากสุด`:"หมวดเสร็จมากสุด",c:"#ff9800"},
+  ];
+  document.getElementById('statsGrid').innerHTML=stats.map(s=>`
+    <div class="stat-card">
+      <div class="stat-num" style="color:${s.c}">${s.n}</div>
+      <div class="stat-label">${s.l}</div>
+    </div>`).join('');
+}
+
+// Filters
+document.getElementById('searchInput').addEventListener('input',e=>{filter.search=e.target.value;page=1;renderCards();});
+document.getElementById('catFilter').addEventListener('change',e=>{filter.cat=e.target.value;page=1;renderCards();});
+document.getElementById('typeFilter').addEventListener('change',e=>{filter.type=e.target.value;page=1;renderCards();});
+document.getElementById('platFilter').addEventListener('change',e=>{filter.plat=e.target.value;page=1;renderCards();});
+
+// ═══════════════════════════════════════════════════════════
+// BOOT — wait for Firebase module to load, then init
+// ═══════════════════════════════════════════════════════════
+function boot(){
+  if(window.__firebase){
+    initFirebase();
+  } else {
+    // Firebase module loads async — poll briefly
+    let attempts=0;
+    const poll=setInterval(()=>{
+      attempts++;
+      if(window.__firebase){clearInterval(poll);initFirebase();}
+      else if(attempts>20){
+        clearInterval(poll);
+        setSyncStatus('red','Firebase ไม่โหลด — ใช้โหมด offline');
+        lsLoad();updateProgress();renderCards();
+      }
+    },200);
+  }
+}
+boot();
+</script>
+</body>
+</html>
